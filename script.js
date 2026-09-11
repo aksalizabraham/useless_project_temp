@@ -1,7 +1,7 @@
-/**
+﻿/**
  * WHY DID YOU MOVE LIKE THAT?
  * Retro Pixel Arcade Machine & Questionable Kinetic Research System
- * Complete Unified Engine
+ * Web Serial API + ESP32 + MPU6050 Hardware Integration
  */
 
 (function () {
@@ -56,7 +56,7 @@
         tone(987, 0.08, 'square', 0.07);
         setTimeout(() => tone(1318, 0.28, 'square', 0.09), 80);
       },
-      shakeRumble: () => tone(120 + Math.random() * 80, 0.08, 'sawtooth', 0.06),
+      shakeRumble: () => tone(120 + Math.random() * 80, 0.06, 'sawtooth', 0.05),
       countdownBeep: (isFinal = false) => {
         init();
         tone(isFinal ? 1046 : 523, isFinal ? 0.35 : 0.12, 'square', 0.1);
@@ -86,86 +86,6 @@
     });
   }
 
-  // =========================================================================
-  // 2. SENSOR MANAGER ABSTRACTION (Hardware Decoupled Architecture)
-  // =========================================================================
-  const sensorManager = (function () {
-    let movementIntensity = 0; // 0 to 100
-    let isSimulated = true;
-    const listeners = [];
-
-    function update() {
-      // Decay intensity towards 0
-      if (movementIntensity > 0.5) {
-        movementIntensity *= 0.91;
-      } else {
-        movementIntensity = 0;
-      }
-
-      // Notify listeners
-      for (let i = 0; i < listeners.length; i++) {
-        listeners[i](movementIntensity);
-      }
-
-      // Update Top HUD Monitor
-      const bar = document.getElementById('liveIntensityBar');
-      const num = document.getElementById('liveIntensityNum');
-      const led = document.getElementById('sensorLed');
-
-      if (bar) bar.style.width = `${Math.round(movementIntensity)}%`;
-      if (num) num.textContent = `${Math.round(movementIntensity)}%`;
-      if (led) {
-        if (movementIntensity > 15) {
-          led.classList.add('active');
-        } else {
-          led.classList.remove('active');
-        }
-      }
-
-      requestAnimationFrame(update);
-    }
-    requestAnimationFrame(update);
-
-    function simulateShake(amount = 45) {
-      movementIntensity = Math.min(100, movementIntensity + amount);
-      audio.shakeRumble();
-    }
-
-    return {
-      getMovementIntensity: () => movementIntensity,
-      simulateShake,
-      onMovement: (cb) => {
-        if (typeof cb === 'function') listeners.push(cb);
-      },
-      setSimulated: (val) => { isSimulated = val; },
-      isSimulated: () => isSimulated
-    };
-  })();
-
-  // Connect manual shake button & spacebar
-  const manualShakeBtn = document.getElementById('manualShakeBtn');
-  if (manualShakeBtn) {
-    manualShakeBtn.addEventListener('click', () => sensorManager.simulateShake(38));
-  }
-
-  window.addEventListener('keydown', (e) => {
-    if (e.code === 'Space' && e.target.tagName !== 'INPUT') {
-      e.preventDefault();
-      sensorManager.simulateShake(35);
-    }
-  });
-
-  // Mouse movement on document adds subtle kinetic noise
-  let lastMouseX = 0, lastMouseY = 0;
-  window.addEventListener('mousemove', (e) => {
-    const delta = Math.hypot(e.clientX - lastMouseX, e.clientY - lastMouseY);
-    lastMouseX = e.clientX;
-    lastMouseY = e.clientY;
-    if (delta > 25) {
-      sensorManager.simulateShake(Math.min(12, delta * 0.15));
-    }
-  });
-
   // Cabinet Top Clock
   const cabinetTime = document.getElementById('cabinetTime');
   setInterval(() => {
@@ -176,7 +96,357 @@
 
 
   // =========================================================================
-  // 3. SCREEN NAVIGATION CONTROLLER
+  // 2. WEB SERIAL API SUBSYSTEM (ESP32 + MPU6050 COMMUNICATION)
+  // =========================================================================
+  const serialManager = (function () {
+    let port = null;
+    let reader = null;
+    let isConnected = false;
+    let keepReading = false;
+    let serialBuffer = '';
+
+    const connectSerialBtn = document.getElementById('connectSerialBtn');
+    const disconnectSerialBtn = document.getElementById('disconnectSerialBtn');
+    const startConnectBtn = document.getElementById('startConnectBtn');
+    const sensorSourceText = document.getElementById('sensorSourceText');
+    const sensorLed = document.getElementById('sensorLed');
+    const esp32HwDot = document.getElementById('esp32HwDot');
+    const esp32HwText = document.getElementById('esp32HwText');
+    const mpuHwDot = document.getElementById('mpuHwDot');
+    const mpuHwText = document.getElementById('mpuHwText');
+    const startHwStatusMsg = document.getElementById('startHwStatusMsg');
+
+    function updateUI(connected, portInfo) {
+      isConnected = connected;
+      portInfo = portInfo || '';
+
+      if (connected) {
+        if (sensorSourceText) sensorSourceText.textContent = 'CONNECTED: ESP32 (115200)' + (portInfo ? ' - ' + portInfo : '');
+        if (sensorLed) sensorLed.className = 'sensor-led connected';
+        if (connectSerialBtn) connectSerialBtn.style.display = 'none';
+        if (disconnectSerialBtn) disconnectSerialBtn.style.display = 'inline-flex';
+        if (startConnectBtn) { startConnectBtn.textContent = '\u2714 ESP32 + MPU6050 CONNECTED'; startConnectBtn.classList.add('linked'); }
+        if (startHwStatusMsg) { startHwStatusMsg.textContent = '\u2714 Hardware Online! Shake your MPU6050 sensor to control the games.'; startHwStatusMsg.style.color = 'var(--pixel-green)'; }
+        if (esp32HwDot) esp32HwDot.className = 'hw-dot connected';
+        if (esp32HwText) esp32HwText.textContent = 'CONNECTED';
+        if (mpuHwDot) mpuHwDot.className = 'hw-dot connected';
+        if (mpuHwText) mpuHwText.textContent = 'ACTIVE';
+      } else {
+        if (sensorSourceText) sensorSourceText.textContent = 'DISCONNECTED (CLICK CONNECT)';
+        if (sensorLed) sensorLed.className = 'sensor-led disconnected';
+        if (connectSerialBtn) connectSerialBtn.style.display = 'inline-flex';
+        if (disconnectSerialBtn) disconnectSerialBtn.style.display = 'none';
+        if (startConnectBtn) { startConnectBtn.textContent = '\uD83D\uDD0C CONNECT ESP32 & MPU6050'; startConnectBtn.classList.remove('linked'); }
+        if (startHwStatusMsg) { startHwStatusMsg.textContent = '\u26A1 Connect your ESP32 via USB Serial (115200 Baud) to play all games with real MPU shaking!'; startHwStatusMsg.style.color = 'var(--pixel-yellow)'; }
+        if (esp32HwDot) esp32HwDot.className = 'hw-dot disconnected';
+        if (esp32HwText) esp32HwText.textContent = 'DISCONNECTED';
+        if (mpuHwDot) mpuHwDot.className = 'hw-dot disconnected';
+        if (mpuHwText) mpuHwText.textContent = 'STANDBY';
+      }
+    }
+
+    async function connect() {
+      audio.init();
+
+      // -----------------------------------------------------------------------
+      // ROOT CAUSE of "No compatible devices found":
+      // Web Serial API requires a SECURE CONTEXT (https:// or http://localhost).
+      // Opening the file directly as file:/// makes window.isSecureContext = false
+      // and navigator.serial becomes undefined or its requestPort() silently
+      // shows 0 ports. Chrome refuses to list any COM ports at all.
+      // FIX: serve via localhost using start_server.bat, then open
+      //      http://localhost:8080 in Chrome.
+      // -----------------------------------------------------------------------
+      if (!window.isSecureContext) {
+        alert(
+          'WEB SERIAL BLOCKED: Not a secure context\n\n' +
+          'You opened this page directly as a file:// URL.\n' +
+          'Chrome blocks Web Serial on file:// — that is why you see\n' +
+          '"No compatible devices found" and no COM ports appear.\n\n' +
+          'SOLUTION:\n' +
+          '1. Double-click  start_server.bat  in the project folder.\n' +
+          '2. Open Chrome and go to:  http://localhost:8080\n' +
+          '3. Click CONNECT ESP32 there.\n\n' +
+          'Keep the black terminal window open while playing.'
+        );
+        return false;
+      }
+
+      if (!('serial' in navigator)) {
+        alert(
+          'Web Serial API not available.\n\n' +
+          'Use Google Chrome or Microsoft Edge 89+.\n' +
+          'Also make sure the page is on localhost or https://.'
+        );
+        return false;
+      }
+
+      if (port && isConnected) {
+        console.log('[Serial] Already connected.');
+        return true;
+      }
+
+      try {
+        console.log('[Serial] Requesting port from browser...');
+        port = await navigator.serial.requestPort();
+        console.log('[Serial] Port granted. Opening at 115200 baud...');
+        await port.open({ baudRate: 115200 });
+        console.log('[Serial] Port open OK.');
+
+        serialBuffer = '';
+        keepReading = true;
+        updateUI(true);
+        audio.coin();
+
+        // Start reading BEFORE sending commands so we don't miss PONG
+        readStream();
+
+        // Wait ~600 ms — ESP32 may reset when DTR toggles on port open
+        await new Promise(function(r) { setTimeout(r, 600); });
+
+        await sendCommand('PING');
+        await new Promise(function(r) { setTimeout(r, 300); });
+        await sendCommand('STREAM_ON');
+        console.log('[Serial] PING + STREAM_ON sent. Listening for PONG...');
+        return true;
+      } catch (err) {
+        console.warn('[Serial] Connection failed or canceled:', err);
+        port = null;
+        updateUI(false);
+        return false;
+      }
+    }
+
+    async function disconnect() {
+      console.log('[Serial] Disconnecting...');
+      keepReading = false;
+
+      // Cancel reader first so readStream() loop exits cleanly
+      if (reader) {
+        try { await reader.cancel(); } catch (e) {}
+        reader = null;
+      }
+
+      // Send STREAM_OFF before closing
+      try { await sendCommand('STREAM_OFF'); } catch (e) {}
+
+      if (port) {
+        try { await port.close(); } catch (e) {}
+        port = null;
+      }
+
+      updateUI(false);
+      audio.blip(350);
+      console.log('[Serial] Disconnected.');
+    }
+
+    // BUG FIX: writer lock released in finally — previously try/catch without
+    // finally meant any write error left the port permanently locked and all
+    // subsequent sendCommand() calls silently failed.
+    async function sendCommand(cmd) {
+      if (!port || !port.writable) return;
+      var encoder = new TextEncoder();
+      var w = null;
+      try {
+        w = port.writable.getWriter();
+        await w.write(encoder.encode(cmd + '\n'));
+        console.log('[Serial] Sent:', cmd);
+      } catch (err) {
+        console.error('[Serial] Send error for "' + cmd + '":', err);
+      } finally {
+        if (w) { try { w.releaseLock(); } catch (e) {} }
+      }
+    }
+
+    // BUG FIX: use port.readable.getReader() directly.
+    // The original code did port.readable.pipeTo(TextDecoderStream) inside a
+    // while-loop. pipeTo() permanently locks port.readable on the FIRST call.
+    // Every subsequent outer-loop iteration found a locked readable and threw
+    // immediately, killing the stream after the first chunk.
+    // Fix: grab a raw reader, decode Uint8Array manually with TextDecoder.
+    async function readStream() {
+      var dec = new TextDecoder();
+
+      while (port && port.readable && keepReading) {
+        reader = null;
+        try {
+          reader = port.readable.getReader();
+
+          while (keepReading) {
+            var result = await reader.read();
+            if (result.done) {
+              console.log('[Serial] Stream done.');
+              break;
+            }
+            if (result.value && result.value.length) {
+              var chunk = dec.decode(result.value, { stream: true });
+              serialBuffer += chunk;
+              var lines = serialBuffer.split('\n');
+              serialBuffer = lines.pop();
+              for (var i = 0; i < lines.length; i++) {
+                var line = lines[i].replace(/\r/g, '').trim();
+                if (line) handleSerialLine(line);
+              }
+            }
+          }
+        } catch (err) {
+          if (keepReading) {
+            console.warn('[Serial] Read error:', err);
+          }
+        } finally {
+          if (reader) {
+            try { reader.releaseLock(); } catch (e) {}
+            reader = null;
+          }
+        }
+
+        if (keepReading && port && port.readable) {
+          await new Promise(function(r) { setTimeout(r, 100); });
+        }
+      }
+
+      if (isConnected) {
+        console.warn('[Serial] Port lost unexpectedly. Cleaning up.');
+        port = null;
+        updateUI(false);
+      }
+    }
+
+    function handleSerialLine(line) {
+      if (!line) return;
+
+      if (!line.startsWith('DATA,')) {
+        console.log('[Serial] <-', line);
+      }
+
+      // FORMAT: DATA,ax,ay,az,gx,gy,gz,accelMag,gyroMag
+      if (line.startsWith('DATA,')) {
+        var parts = line.split(',');
+        if (parts.length >= 9) {
+          var ax = parseFloat(parts[1]) || 0;
+          var ay = parseFloat(parts[2]) || 0;
+          var az = parseFloat(parts[3]) || 0;
+          var gx = parseFloat(parts[4]) || 0;
+          var gy = parseFloat(parts[5]) || 0;
+          var gz = parseFloat(parts[6]) || 0;
+          var accelMag = parseFloat(parts[7]) || 1.0;
+          var gyroMag  = parseFloat(parts[8]) || 0.0;
+          // Uncomment to debug individual sensor frames:
+          // console.log('[Sensor] accelMag=' + accelMag.toFixed(3) + ' gyroMag=' + gyroMag.toFixed(1));
+          sensorManager.handleHardwareData(ax, ay, az, gx, gy, gz, accelMag, gyroMag);
+        } else {
+          console.warn('[Serial] Malformed DATA (need 9 fields):', line);
+        }
+      } else if (line === 'PONG') {
+        console.log('[Serial] ESP32 handshake PONG OK');
+      } else if (line === 'STREAM_ON_OK') {
+        console.log('[Serial] Streaming active');
+      } else if (line === 'STREAM_OFF_OK') {
+        console.log('[Serial] Streaming off');
+      } else if (line === 'STARTED') {
+        console.log('[Serial] Game started');
+      } else if (line === 'STOPPED') {
+        console.log('[Serial] Game stopped');
+      } else if (line === 'RESET_COMPLETE') {
+        console.log('[Serial] ESP32 reset complete');
+      }
+    }
+
+    if (connectSerialBtn) connectSerialBtn.addEventListener('click', connect);
+    if (disconnectSerialBtn) disconnectSerialBtn.addEventListener('click', disconnect);
+    if (startConnectBtn) startConnectBtn.addEventListener('click', connect);
+
+    return {
+      connect: connect,
+      disconnect: disconnect,
+      sendCommand: sendCommand,
+      isConnected: function() { return isConnected; }
+    };
+  })();
+
+
+  // =========================================================================
+  // 3. SENSOR INTENSITY & MPU SHAKE PROCESSOR
+  // =========================================================================
+  const sensorManager = (function () {
+    let movementIntensity = 0; // 0 to 100
+    const listeners = [];
+
+    // Hardware telemetry cache
+    let curAx = 0, curAy = 0, curAz = 1, curGx = 0, curGy = 0, curGz = 0;
+    let curAccelMag = 1.0, curGyroMag = 0.0;
+
+    // Elements
+    const liveBar = document.getElementById('liveIntensityBar');
+    const liveNum = document.getElementById('liveIntensityNum');
+    const rawAccelXYZ = document.getElementById('rawAccelXYZ');
+    const rawGyroXYZ = document.getElementById('rawGyroXYZ');
+    const rawAccelMag = document.getElementById('rawAccelMag');
+    const rawGyroMag = document.getElementById('rawGyroMag');
+
+    function update() {
+      // Decay movement intensity towards 0 when shaking pauses
+      if (movementIntensity > 0.4) {
+        movementIntensity *= 0.88;
+      } else {
+        movementIntensity = 0;
+      }
+
+      // Update Top HUD Monitor
+      if (liveBar) liveBar.style.width = `${Math.round(movementIntensity)}%`;
+      if (liveNum) liveNum.textContent = `${Math.round(movementIntensity)}%`;
+
+      // Broadcast to active games
+      for (let i = 0; i < listeners.length; i++) {
+        listeners[i](movementIntensity);
+      }
+
+      requestAnimationFrame(update);
+    }
+    requestAnimationFrame(update);
+
+    // Called every 20ms with real MPU6050 serial data
+    function handleHardwareData(ax, ay, az, gx, gy, gz, accelMag, gyroMag) {
+      curAx = ax; curAy = ay; curAz = az;
+      curGx = gx; curGy = gy; curGz = gz;
+      curAccelMag = accelMag; curGyroMag = gyroMag;
+
+      // Dynamic acceleration (Earth's gravity is 1.0g at rest)
+      const dynamicAccel = Math.abs(accelMag - 1.0);
+
+      // Accelerometer intensity mapping (0.12g threshold, 1.6g intense shake)
+      const accelFactor = Math.min(100, Math.max(0, (dynamicAccel - 0.12) / 1.5 * 100));
+
+      // Gyroscope rotation intensity (25 deg/s threshold, 360 deg/s intense shake)
+      const gyroFactor = Math.min(100, Math.max(0, (gyroMag - 25) / 330 * 100));
+
+      // Combined shake response
+      const instantIntensity = Math.min(100, Math.max(accelFactor, gyroFactor) * 0.85 + Math.min(accelFactor, gyroFactor) * 0.15);
+
+      if (instantIntensity > movementIntensity) {
+        movementIntensity = instantIntensity; // Immediate peak response
+      }
+
+      // Update Raw Telemetry in Lab if visible
+      if (rawAccelXYZ) rawAccelXYZ.textContent = `${ax.toFixed(2)}, ${ay.toFixed(2)}, ${az.toFixed(2)} g`;
+      if (rawGyroXYZ) rawGyroXYZ.textContent = `${gx.toFixed(1)}, ${gy.toFixed(1)}, ${gz.toFixed(1)} °/s`;
+      if (rawAccelMag) rawAccelMag.textContent = `${accelMag.toFixed(3)} g`;
+      if (rawGyroMag) rawGyroMag.textContent = `${gyroMag.toFixed(3)} °/s`;
+    }
+
+    return {
+      getMovementIntensity: () => movementIntensity,
+      handleHardwareData,
+      getRawVectors: () => ({ ax: curAx, ay: curAy, az: curAz, gx: curGx, gy: curGy, gz: curGz, accelMag: curAccelMag, gyroMag: curGyroMag }),
+      onMovement: (cb) => {
+        if (typeof cb === 'function') listeners.push(cb);
+      }
+    };
+  })();
+
+
+  // =========================================================================
+  // 4. SCREEN NAVIGATION CONTROLLER
   // =========================================================================
   const screenManager = (function () {
     const screens = document.querySelectorAll('.arcade-screen');
@@ -195,7 +465,7 @@
     return { showScreen };
   })();
 
-  // Global Navigation Links
+  // Navigation Button Bindings
   const pressStartBtn = document.getElementById('pressStartBtn');
   if (pressStartBtn) {
     pressStartBtn.addEventListener('click', () => {
@@ -211,21 +481,26 @@
 
   const gotoLabBtn = document.getElementById('gotoLabBtn');
   if (gotoLabBtn) {
-    gotoLabBtn.addEventListener('click', () => screenManager.showScreen('screen-lab'));
+    gotoLabBtn.addEventListener('click', () => {
+      serialManager.sendCommand("STREAM_ON");
+      screenManager.showScreen('screen-lab');
+    });
   }
 
   document.querySelectorAll('.back-to-arcade-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
-      // Clean up any running games
       carGame.stop();
       battleGame.stop();
+      // Reset ESP32 state and maintain stream
+      serialManager.sendCommand("RESET");
+      setTimeout(() => serialManager.sendCommand("STREAM_ON"), 200);
       screenManager.showScreen('screen-arcade');
     });
   });
 
 
   // =========================================================================
-  // 4. LEADERBOARD SERVICE (LocalStorage CRUD)
+  // 5. LEADERBOARD SERVICE (LocalStorage CRUD)
   // =========================================================================
   const leaderboardService = (function () {
     const STORAGE_KEY = 'unnecessary_arcade_shame_leaderboard';
@@ -301,7 +576,7 @@
 
 
   // =========================================================================
-  // 5. FAKE GAME POPUP & RANDOMIZED EXCUSES
+  // 6. FAKE GAME POPUP & RANDOMIZED SATIRE
   // =========================================================================
   const fakeGamesData = {
     brain: {
@@ -430,50 +705,55 @@
 
 
   // =========================================================================
-  // 6. GAME SELECTOR DISPATCHER
-  // =========================================================================
-  document.querySelectorAll('.game-card').forEach((card) => {
-    card.addEventListener('click', () => {
-      const playable = card.dataset.game;
-      const fake = card.dataset.fake;
-
-      if (playable === 'why') {
-        whyGame.init();
-        screenManager.showScreen('screen-game-why');
-      } else if (playable === 'car') {
-        carGame.init();
-        screenManager.showScreen('screen-game-car');
-      } else if (playable === 'battle') {
-        battleGame.init();
-        screenManager.showScreen('screen-game-battle');
-      } else if (fake) {
-        openFakeGame(fake);
-      }
-    });
-  });
-
-
-  // =========================================================================
-  // 7. REAL GAME 1: WHY DID YOU MOVE LIKE THAT?
+  // 7. REAL GAME 1: WHY DID YOU MOVE LIKE THAT? (INTERACTIVE DAILY ACTIVITIES)
   // =========================================================================
   const whyGame = (function () {
-    const RIDICULOUS_EXPLANATIONS = [
-      "You moved because you remembered something embarrassing from 2019.",
-      "You were attacked by an invisible mosquito.",
-      "You suddenly remembered you left your charger somewhere.",
-      "You heard someone say 'free food'.",
-      "You were trying to escape responsibility.",
-      "You received a software update.",
-      "You simply felt like moving.",
-      "Your skeleton attempted a quick escape.",
-      "A phantom notification vibrated in your thigh.",
-      "You realized you made eye contact with a stranger."
+    const DAILY_ACTIVITY_EXPLANATIONS = [
+      "You were pretending to text someone so you wouldn't have to greet a coworker in the hallway.",
+      "You were attempting to open a bag of chips at 1 AM without making a single decibel of noise.",
+      "You suddenly realized you were waving back at someone who was actually waving at the person behind you.",
+      "You were frantically searching for your phone while actively using your phone's flashlight to look for it.",
+      "You tried to unplug a charger from across the room using only your big toe.",
+      "You stepped on an imaginary extra step at the bottom of the staircase.",
+      "You were smelling your shirt collar to verify if this morning's deodorant was still holding on.",
+      "You were trying to scratch an itch in the dead center of your back against a doorframe like a grizzly bear.",
+      "You reached for a glass of water, missed completely, and tried to turn it into a cool casual stretch.",
+      "You were doing the silent victory wiggle after tossing a crumpled paper into the bin from 6 feet away.",
+      "You checked your wrist for the time, forgot what the watch said, and immediately had to check again.",
+      "You were trying to dodge an imaginary bee that was actually just a piece of dust in your eyelashes.",
+      "You rehearsed a fake argument in the shower and had to deliver the imaginary mic-drop punchline.",
+      "You walked into the kitchen with deep purpose, stood in front of the open fridge, and completely forgot why you existed.",
+      "You were attempting to balance the hallway light switch exactly between the ON and OFF positions.",
+      "You felt a phantom vibration in your thigh, but your phone was sitting on the kitchen counter.",
+      "You were trying to push a door that clearly had a giant 'PULL' sign bolted onto it.",
+      "You threw yourself sideways to catch a falling pen, failed, and knocked over three other things in the process.",
+      "You were sneaking toward the snack cupboard pretending you were a covert operative on a classified mission.",
+      "You caught your own reflection in a dark store window and instinctively apologized for bumping into yourself.",
+      "You were trying to put on pants while hopping on one leg and refusing to accept defeat.",
+      "You heard someone say 'free samples' from 40 meters away and your kinetic sensors locked on.",
+      "You felt a single stray hair on your neck and fought for your life against an invisible creature.",
+      "You were testing whether you could still kick above waist height without tearing a hamstring.",
+      "You were attempting to peel a sticker off a piece of fruit and accidentally launched it across the room."
+    ];
+
+    const LIVE_SUSPICIONS = [
+      "Testing if morning deodorant is still holding on...",
+      "Opening chips bag at 1 AM in stealth mode...",
+      "Stepping on imaginary extra step on staircase...",
+      "Pretending to text someone to avoid eye contact...",
+      "Searching for phone using phone's own flashlight...",
+      "Balancing hallway light switch between ON and OFF...",
+      "Waving back at someone waving at the person behind you...",
+      "Walking into kitchen and forgetting why you exist...",
+      "Dodging an imaginary bee that is actually dust...",
+      "Trying to unplug charger using only your big toe..."
     ];
 
     let playerName = 'HUMAN #404';
     let isObserving = false;
     let accumulatedMotion = 0;
-    let observeTimer = null;
+    let currentHypoIndex = 0;
+    let lastHypoChangeTime = 0;
 
     const setupPhase = document.getElementById('why-setup-phase');
     const observingPhase = document.getElementById('why-observing-phase');
@@ -483,6 +763,12 @@
     const blockMeter = document.getElementById('whyBlockMeter');
     const meterPercent = document.getElementById('whyMeterPercentage');
     const detectedTag = document.getElementById('whyMovementDetectedTag');
+    const hypothesisText = document.getElementById('whyHypothesisText');
+    const stage1 = document.getElementById('whyStage1');
+    const stage2 = document.getElementById('whyStage2');
+    const stage3 = document.getElementById('whyStage3');
+    const awkwardVal = document.getElementById('whyAwkwardVal');
+    const routineVal = document.getElementById('whyRoutineVal');
     const resultPlayer = document.getElementById('whyResultPlayer');
     const explanationText = document.getElementById('whyExplanationText');
     const confidenceVal = document.getElementById('whyConfidenceVal');
@@ -495,6 +781,12 @@
       if (observingPhase) observingPhase.style.display = 'none';
       if (resultPhase) resultPhase.style.display = 'none';
       if (playerInput) playerInput.value = playerName;
+
+      if (stage1) stage1.className = 'stage-pill active';
+      if (stage2) stage2.className = 'stage-pill';
+      if (stage3) stage3.className = 'stage-pill';
+
+      serialManager.sendCommand("GAME1");
     }
 
     function startObserving() {
@@ -507,17 +799,20 @@
       accumulatedMotion = 0;
       audio.coin();
 
-      // Trigger automatic simulation pulse if player is inactive
-      observeTimer = setTimeout(() => {
-        if (isObserving && accumulatedMotion < 40) {
-          sensorManager.simulateShake(60);
-        }
-      }, 1200);
+      // Trigger ESP32 hardware countdown with OLED bitmap & start fanfare
+      serialManager.sendCommand("GAME1");
+      setTimeout(() => serialManager.sendCommand("START"), 150);
     }
 
     function onMotion(intensity) {
       if (!isObserving) return;
-      accumulatedMotion += intensity * 0.4;
+
+      // Slower, measured progress requiring ~10-14 seconds of sustained physical MPU shaking
+      if (intensity > 10) {
+        accumulatedMotion += (intensity / 100) * 0.92;
+        audio.shakeRumble();
+      }
+
       const progress = Math.min(100, Math.round(accumulatedMotion));
 
       if (meterPercent) meterPercent.textContent = `${progress}%`;
@@ -526,9 +821,38 @@
         blockMeter.textContent = '█'.repeat(blocks) + '░'.repeat(20 - blocks);
       }
 
-      if (progress > 35 && detectedTag) {
-        detectedTag.textContent = 'MOVEMENT DETECTED! ANALYZING MOTIVE...';
-        detectedTag.style.color = 'var(--pixel-pink)';
+      // Cycle live suspicion ticker every 1.8 seconds when active
+      const now = performance.now();
+      if (now - lastHypoChangeTime > 1800 && progress > 5 && progress < 98) {
+        lastHypoChangeTime = now;
+        currentHypoIndex = (currentHypoIndex + 1) % LIVE_SUSPICIONS.length;
+        if (hypothesisText) {
+          hypothesisText.textContent = `"${LIVE_SUSPICIONS[currentHypoIndex]}"`;
+        }
+      }
+
+      // Stage Progression: Stage 1 (0-33%), Stage 2 (34-66%), Stage 3 (67-100%)
+      if (progress < 34) {
+        if (stage1) stage1.className = 'stage-pill active';
+        if (stage2) stage2.className = 'stage-pill';
+        if (stage3) stage3.className = 'stage-pill';
+        if (awkwardVal) awkwardVal.textContent = 'DETECTING TWITCHES';
+        if (routineVal) routineVal.textContent = 'INITIALIZING...';
+        if (detectedTag) detectedTag.textContent = 'STAGE 1: RECORDING BIOMETRIC EMBARRASSMENT...';
+      } else if (progress < 67) {
+        if (stage1) stage1.className = 'stage-pill completed';
+        if (stage2) stage2.className = 'stage-pill active';
+        if (stage3) stage3.className = 'stage-pill';
+        if (awkwardVal) awkwardVal.textContent = 'POSTURE: HIGHLY SUSPICIOUS';
+        if (routineVal) routineVal.textContent = 'MATCHING DAILY HABITS (64%)';
+        if (detectedTag) detectedTag.textContent = 'STAGE 2: ISOLATING CLUMSY DOMESTIC PATTERNS...';
+      } else {
+        if (stage1) stage1.className = 'stage-pill completed';
+        if (stage2) stage2.className = 'stage-pill completed';
+        if (stage3) stage3.className = 'stage-pill active';
+        if (awkwardVal) awkwardVal.textContent = 'MAXIMUM WEIRDNESS CONFIRMED';
+        if (routineVal) routineVal.textContent = 'EXPLANATION SYNTHESIZING...';
+        if (detectedTag) detectedTag.textContent = 'STAGE 3: FINAL BURST! DON\'T STOP SHAKING!';
       }
 
       if (progress >= 100) {
@@ -540,12 +864,13 @@
     function conclude() {
       if (!isObserving) return;
       isObserving = false;
-      clearTimeout(observeTimer);
 
+      // Stop ESP32 hardware (buzzer plays victory fanfare, OLED displays trophy)
+      serialManager.sendCommand("STOP");
       audio.victory();
 
-      const randExplanation = RIDICULOUS_EXPLANATIONS[Math.floor(Math.random() * RIDICULOUS_EXPLANATIONS.length)];
-      const randConf = (94.0 + Math.random() * 5.9).toFixed(1);
+      const randExplanation = DAILY_ACTIVITY_EXPLANATIONS[Math.floor(Math.random() * DAILY_ACTIVITY_EXPLANATIONS.length)];
+      const randConf = (96.0 + Math.random() * 3.9).toFixed(1);
 
       if (resultPlayer) resultPlayer.textContent = playerName.toUpperCase();
       if (explanationText) explanationText.textContent = `"${randExplanation}"`;
@@ -563,28 +888,36 @@
 
 
   // =========================================================================
-  // 8. REAL GAME 2: SHAKE THE CAR
+  // 8. REAL GAME 2: SHAKE THE CAR (1000 METERS EXTENDED RACE)
   // =========================================================================
   const carGame = (function () {
     const FINISH_QUOTES = [
       "Technically you won.",
       "NASA has requested your shaking technique.",
       "That was unnecessarily aggressive.",
-      "Your car has filed a complaint.",
-      "Speed limit officially disrespected."
+      "Your car has filed a formal complaint.",
+      "Speed limit officially disrespected.",
+      "The car engine survived purely out of fear."
     ];
 
     let isRacing = false;
-    let carPosition = 0; // 0 to 86 percent of track
-    let timeLeft = 30.0;
+    let currentDistance = 0; // 0 to 1000 meters
+    let timeLeft = 45.0;     // Extended to 45 seconds
     let shakeCount = 0;
     let speedMph = 0;
     let raceInterval = null;
     let startTime = 0;
 
+    let m250Reached = false;
+    let m500Reached = false;
+    let m750Reached = false;
+
     const timerVal = document.getElementById('carTimerVal');
-    const shakeCountVal = document.getElementById('carShakeCountVal');
+    const distanceVal = document.getElementById('carDistanceVal');
     const speedVal = document.getElementById('carSpeedVal');
+    const shakeCountVal = document.getElementById('carShakeCountVal');
+    const milestoneMsg = document.getElementById('carMilestoneMsg');
+    const distanceFill = document.getElementById('carDistanceFill');
     const playerCar = document.getElementById('playerCar');
     const startOverlay = document.getElementById('carStartOverlay');
     const startRaceBtn = document.getElementById('carStartRaceBtn');
@@ -597,32 +930,52 @@
 
     function init() {
       stop();
-      carPosition = 0;
-      timeLeft = 30.0;
+      currentDistance = 0;
+      timeLeft = 45.0;
       shakeCount = 0;
       speedMph = 0;
+      m250Reached = false;
+      m500Reached = false;
+      m750Reached = false;
+
       if (playerCar) {
         playerCar.style.left = '10px';
         playerCar.classList.remove('driving');
       }
-      if (timerVal) timerVal.textContent = '30.0s';
-      if (shakeCountVal) shakeCountVal.textContent = '0';
+      if (timerVal) timerVal.textContent = '45.0s';
+      if (distanceVal) distanceVal.textContent = '0 / 1000m';
       if (speedVal) speedVal.textContent = '0 MPH';
+      if (shakeCountVal) shakeCountVal.textContent = '0';
+      if (distanceFill) distanceFill.style.width = '0%';
+      if (milestoneMsg) {
+        milestoneMsg.textContent = 'RACE LENGTH: 1000 METERS // SHAKE CONTINUOUSLY TO SUSTAIN SPEED!';
+        milestoneMsg.classList.remove('highlight');
+      }
+
       if (startOverlay) startOverlay.style.display = 'flex';
       if (resultOverlay) resultOverlay.style.display = 'none';
+      serialManager.sendCommand("GAME2");
     }
 
     function startRace() {
       if (startOverlay) startOverlay.style.display = 'none';
       if (resultOverlay) resultOverlay.style.display = 'none';
       isRacing = true;
-      carPosition = 0;
-      timeLeft = 30.0;
+      currentDistance = 0;
+      timeLeft = 45.0;
       shakeCount = 0;
+      speedMph = 0;
+      m250Reached = false;
+      m500Reached = false;
+      m750Reached = false;
       startTime = performance.now();
       audio.countdownBeep(true);
 
       if (playerCar) playerCar.classList.add('driving');
+
+      // Command ESP32 hardware to countdown with OLED car bitmap & start fanfare
+      serialManager.sendCommand("GAME2");
+      setTimeout(() => serialManager.sendCommand("START"), 150);
 
       raceInterval = setInterval(() => {
         timeLeft -= 0.1;
@@ -631,42 +984,71 @@
           gameOver(false);
         }
         if (timerVal) timerVal.textContent = `${timeLeft.toFixed(1)}s`;
+
+        // Rolling friction continually slows the car down if player stops shaking
+        speedMph = Math.max(0, speedMph * 0.965);
+        if (speedVal) speedVal.textContent = `${Math.round(speedMph)} MPH`;
+
+        // Advance distance based on current speed
+        currentDistance += (speedMph * 0.14);
+        if (currentDistance > 1000) currentDistance = 1000;
+
+        const progressPct = (currentDistance / 1000);
+        if (distanceVal) distanceVal.textContent = `${Math.round(currentDistance)} / 1000m`;
+        if (distanceFill) distanceFill.style.width = `${progressPct * 100}%`;
+        if (playerCar) playerCar.style.left = `calc(${progressPct * 84}% + 10px)`;
+
+        // Milestone checkpoints
+        if (currentDistance >= 250 && !m250Reached) {
+          m250Reached = true;
+          announceMilestone("250m CROSSED! KEEP UP THE MOMENTUM!");
+        }
+        if (currentDistance >= 500 && !m500Reached) {
+          m500Reached = true;
+          announceMilestone("500m HALFWAY POINT! DON'T STOP SHAKING!");
+        }
+        if (currentDistance >= 750 && !m750Reached) {
+          m750Reached = true;
+          announceMilestone("750m FINAL SPRINT! MAXIMUM FLUID MOTION!");
+        }
+
+        // Finish Line Reached!
+        if (currentDistance >= 1000) {
+          gameOver(true);
+        }
       }, 100);
+    }
+
+    function announceMilestone(msg) {
+      if (!milestoneMsg) return;
+      milestoneMsg.textContent = `⚡ ${msg}`;
+      milestoneMsg.classList.add('highlight');
+      audio.blip(880);
+      setTimeout(() => {
+        if (milestoneMsg) milestoneMsg.classList.remove('highlight');
+      }, 1400);
     }
 
     function onMotion(intensity) {
       if (!isRacing) return;
 
-      if (intensity > 15) {
+      if (intensity > 12) {
         shakeCount++;
         if (shakeCountVal) shakeCountVal.textContent = shakeCount;
-      }
-
-      speedMph = Math.round(intensity * 1.8);
-      if (speedVal) speedVal.textContent = `${speedMph} MPH`;
-
-      // Advance car
-      const delta = (intensity / 100) * 1.4;
-      carPosition += delta;
-
-      if (playerCar) {
-        playerCar.style.left = `calc(${Math.min(84, carPosition)}% + 10px)`;
-      }
-
-      // Check finish line!
-      if (carPosition >= 84) {
-        gameOver(true);
+        // Acceleration directly boosted by physical MPU shake
+        speedMph = Math.min(180, speedMph + (intensity / 100) * 11.5);
       }
     }
     sensorManager.onMovement(onMotion);
 
     function gameOver(won) {
       stop();
+      serialManager.sendCommand("STOP");
       const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
 
       if (won) {
         audio.victory();
-        if (resultTitle) resultTitle.textContent = 'FINISH!!!';
+        if (resultTitle) resultTitle.textContent = '1000m FINISH!!!';
         if (finalTime) finalTime.textContent = `${elapsed} seconds`;
         if (finalShakes) finalShakes.textContent = shakeCount;
         if (performanceQuote) {
@@ -675,10 +1057,10 @@
       } else {
         audio.buzzer();
         if (resultTitle) resultTitle.textContent = 'THE CAR HAS GIVEN UP.';
-        if (finalTime) finalTime.textContent = '30.0s (TIMEOUT)';
+        if (finalTime) finalTime.textContent = '45.0s (TIMEOUT)';
         if (finalShakes) finalShakes.textContent = shakeCount;
         if (performanceQuote) {
-          performanceQuote.textContent = '"The engine refused to cooperate with such questionable mechanics."';
+          performanceQuote.textContent = '"You ran out of kinetic stamina before reaching the 1000m mark."';
         }
       }
 
@@ -699,7 +1081,7 @@
 
 
   // =========================================================================
-  // 9. REAL GAME 3: SHAKE BATTLE
+  // 9. REAL GAME 3: SHAKE BATTLE (10s MPU COMBATIVE SHOWDOWN)
   // =========================================================================
   const battleGame = (function () {
     let playerName = 'WARRIOR_01';
@@ -736,12 +1118,17 @@
       if (activePhase) activePhase.style.display = 'none';
       if (resultPhase) resultPhase.style.display = 'none';
       if (playerNameInput) playerNameInput.value = playerName;
+      serialManager.sendCommand("GAME3");
     }
 
     function startCountdown() {
       playerName = (playerNameInput && playerNameInput.value.trim()) || 'WARRIOR_01';
       if (setupPhase) setupPhase.style.display = 'none';
       if (countdownPhase) countdownPhase.style.display = 'flex';
+
+      // Synchronize ESP32 countdown
+      serialManager.sendCommand("GAME3");
+      setTimeout(() => serialManager.sendCommand("START"), 100);
 
       let count = 3;
       if (countdownNum) countdownNum.textContent = '3';
@@ -759,7 +1146,7 @@
           clearInterval(countTimer);
           startActiveBattle();
         }
-      }, 850);
+      }, 750);
     }
 
     function startActiveBattle() {
@@ -787,9 +1174,11 @@
     function onMotion(intensity) {
       if (!isBattling) return;
 
-      // Accumulate score
-      score += Math.round(intensity * 0.45);
-      if (scoreDisplay) scoreDisplay.textContent = score;
+      // Accumulate score based directly on MPU6050 shake power
+      if (intensity > 10) {
+        score += Math.round(intensity * 0.45);
+        if (scoreDisplay) scoreDisplay.textContent = score;
+      }
 
       if (powerFill) powerFill.style.width = `${Math.round(intensity)}%`;
       if (powerPercent) powerPercent.textContent = `${Math.round(intensity)}%`;
@@ -797,9 +1186,9 @@
       // Visual character reaction
       if (fighter) {
         fighter.classList.remove('shaking-mild', 'shaking-wild');
-        if (intensity > 60) {
+        if (intensity > 55) {
           fighter.classList.add('shaking-wild');
-        } else if (intensity > 20) {
+        } else if (intensity > 18) {
           fighter.classList.add('shaking-mild');
         }
       }
@@ -817,6 +1206,7 @@
 
     function endBattle() {
       stop();
+      serialManager.sendCommand("STOP");
       audio.victory();
 
       const title = getPerformanceTitle(score);
@@ -852,13 +1242,37 @@
 
 
   // =========================================================================
-  // 10. PRESERVED HARDWARE DIAGNOSTIC LAB SUBSYSTEM (Milestone 1 Canvas & Logic)
+  // 10. GAME CARD SELECTION DISPATCHER
+  // =========================================================================
+  document.querySelectorAll('.game-card').forEach((card) => {
+    card.addEventListener('click', () => {
+      const playable = card.dataset.game;
+      const fake = card.dataset.fake;
+
+      if (playable === 'why') {
+        whyGame.init();
+        screenManager.showScreen('screen-game-why');
+      } else if (playable === 'car') {
+        carGame.init();
+        screenManager.showScreen('screen-game-car');
+      } else if (playable === 'battle') {
+        battleGame.init();
+        screenManager.showScreen('screen-game-battle');
+      } else if (fake) {
+        openFakeGame(fake);
+      }
+    });
+  });
+
+
+  // =========================================================================
+  // 11. HARDWARE DIAGNOSTIC LAB (MPU 3D GIMBAL + REAL ORIENTATION)
   // =========================================================================
   const labCanvas = document.getElementById('sensorCanvas');
   const labCtx = labCanvas ? labCanvas.getContext('2d') : null;
 
   if (labCanvas && labCtx) {
-    let angleX = 0, angleY = 0, angleZ = 0;
+    let baseAngleX = 0, baseAngleY = 0, baseAngleZ = 0;
     let isScanningMode = false;
 
     function resizeLabCanvas() {
@@ -913,17 +1327,22 @@
 
       labCtx.clearRect(0, 0, w, h);
 
-      const mult = isScanningMode ? 2.5 : 1;
-      angleX += 0.012 * mult;
-      angleY += 0.01 * mult;
-      angleZ += 0.015 * mult;
+      // Read live vectors from physical MPU6050
+      const raw = sensorManager.getRawVectors();
+      // Physical tilt angles derived from accelerometer vectors:
+      const physPitch = Math.atan2(raw.ay, Math.sqrt(raw.ax * raw.ax + raw.az * raw.az));
+      const physRoll  = Math.atan2(-raw.ax, raw.az);
 
-      // Outer Ring
-      drawGimbalRing(cx, cy, r * 0.95, angleX, angleY * 0.5, angleZ, isScanningMode ? '#ffb703' : 'rgba(0, 240, 255, 0.8)', [], 16);
-      // Middle Ring
-      drawGimbalRing(cx, cy, r * 0.7, angleX * 1.3, angleY, -angleZ * 0.7, '#00ff77', [4, 4], 8);
-      // Inner Ring
-      drawGimbalRing(cx, cy, r * 0.45, -angleX * 0.8, angleY * 1.5, angleZ * 1.4, '#ffffff', [], 6);
+      baseAngleX = physPitch + 0.2;
+      baseAngleY = physRoll;
+      baseAngleZ += (raw.gz * 0.008) + 0.01;
+
+      // Outer Ring (Yaw)
+      drawGimbalRing(cx, cy, r * 0.95, baseAngleX, baseAngleY * 0.5, baseAngleZ, isScanningMode ? '#ffb703' : 'rgba(0, 240, 255, 0.8)', [], 16);
+      // Middle Ring (Pitch)
+      drawGimbalRing(cx, cy, r * 0.7, baseAngleX * 1.3, baseAngleY, -baseAngleZ * 0.7, '#00ff77', [4, 4], 8);
+      // Inner Ring (Roll)
+      drawGimbalRing(cx, cy, r * 0.45, -baseAngleX * 0.8, baseAngleY * 1.5, baseAngleZ * 1.4, '#ffffff', [], 6);
 
       requestAnimationFrame(renderLab);
     }
@@ -936,13 +1355,9 @@
     const terminalLog = document.getElementById('terminalLog');
     const terminalStatusIndicator = document.getElementById('terminalStatusIndicator');
     const sysStatusVal = document.getElementById('systemStatusValue');
-    const sysStatusDot = document.getElementById('systemStatusDot');
     const sensorStatusVal = document.getElementById('sensorStatusValue');
-    const sensorStatusDot = document.getElementById('sensorStatusDot');
-    const sensorSubtext = document.getElementById('sensorSubtext');
     const usefulnessVal = document.getElementById('usefulnessValue');
     const usefulnessBar = document.getElementById('usefulnessBar');
-    const usefulnessPill = document.getElementById('usefulnessPill');
 
     const LAB_SEQUENCE = [
       'SCANNING HUMAN...',

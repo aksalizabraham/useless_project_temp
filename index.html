@@ -43,23 +43,26 @@
       </div>
     </header>
 
-    <!-- UNIVERSAL MOVEMENT CONTROLLER / SIMULATION HELPER (STICKY PIXEL BAR) -->
+    <!-- UNIVERSAL MPU6050 HARDWARE SERIAL BAR -->
     <div class="universal-sensor-bar" id="sensorSimulatorBar">
       <div class="sensor-indicator">
-        <span class="sensor-led" id="sensorLed"></span>
-        <span class="sensor-label">SENSOR INPUT:</span>
-        <span class="sensor-source" id="sensorSourceText">SIMULATED (MPU6050 READY)</span>
+        <span class="sensor-led disconnected" id="sensorLed"></span>
+        <span class="sensor-label">HARDWARE:</span>
+        <span class="sensor-source" id="sensorSourceText">DISCONNECTED (USB 115200)</span>
       </div>
       <div class="sensor-power-meter">
-        <span class="meter-label">INTENSITY:</span>
+        <span class="meter-label">MPU SHAKE:</span>
         <div class="meter-bar-track">
           <div class="meter-bar-fill" id="liveIntensityBar" style="width: 0%;"></div>
         </div>
         <span class="meter-num" id="liveIntensityNum">0%</span>
       </div>
       <div class="sensor-trigger-actions">
-        <button id="manualShakeBtn" class="pixel-btn trigger-btn">
-          ⚡ SHAKE SENSOR (OR PRESS SPACE)
+        <button id="connectSerialBtn" class="pixel-btn connect-btn">
+          🔌 CONNECT ESP32
+        </button>
+        <button id="disconnectSerialBtn" class="pixel-btn disconnect-btn" style="display: none;">
+          ✕ DISCONNECT
         </button>
       </div>
     </div>
@@ -137,22 +140,32 @@
             </div>
           </div>
 
-          <!-- STATUS INDICATORS REQUIRED BY SPEC -->
+          <!-- STATUS INDICATORS -->
           <div class="hardware-status-row">
             <div class="hw-stat-item">
               <span class="hw-name">ESP32</span>
-              <span class="hw-dot connected">●</span>
-              <span class="hw-text">CONNECTED</span>
+              <span class="hw-dot disconnected" id="esp32HwDot">●</span>
+              <span class="hw-text" id="esp32HwText">DISCONNECTED</span>
             </div>
             <div class="hw-stat-item">
               <span class="hw-name">MPU6050</span>
-              <span class="hw-dot connected">●</span>
-              <span class="hw-text">CONNECTED</span>
+              <span class="hw-dot disconnected" id="mpuHwDot">●</span>
+              <span class="hw-text" id="mpuHwText">STANDBY</span>
             </div>
             <div class="hw-stat-item alert">
               <span class="hw-name">BRAIN</span>
               <span class="hw-dot questionable">●</span>
               <span class="hw-text">QUESTIONABLE</span>
+            </div>
+          </div>
+
+          <!-- HARDWARE USB SERIAL CONNECT PROMPT -->
+          <div class="hardware-connection-card">
+            <button id="startConnectBtn" class="arcade-primary-btn connect-main-btn">
+              🔌 CONNECT ESP32 &amp; MPU6050
+            </button>
+            <div class="hw-status-subtext" id="startHwStatusMsg">
+              ⚡ Connect your ESP32 via USB Serial (115200 Baud) to play all games with real MPU shaking!
             </div>
           </div>
 
@@ -345,11 +358,26 @@
           <!-- PHASE 2: OBSERVATION & MOVEMENT WAITING -->
           <div class="game-sub-panel" id="why-observing-phase" style="display: none;">
             <div class="get-ready-banner blink-fast">GET READY...</div>
-            <p class="observation-hint">MOVE YOUR SENSOR (OR PRESS THE SHAKE BUTTON)!</p>
+            <p class="observation-hint">SHAKE YOUR PHYSICAL MPU6050 SENSOR CONTINUOUSLY!</p>
             
+            <!-- 3 STAGES OF KINETIC INVESTIGATION -->
+            <div class="why-stages-indicator">
+              <div class="stage-pill active" id="whyStage1">1. CALIBRATING TICKS</div>
+              <div class="stage-arrow">→</div>
+              <div class="stage-pill" id="whyStage2">2. DAILY ROUTINES</div>
+              <div class="stage-arrow">→</div>
+              <div class="stage-pill" id="whyStage3">3. ISOLATING MOTIVE</div>
+            </div>
+
+            <!-- LIVE ACTIVITY HYPOTHESIS TICKER -->
+            <div class="hypothesis-box">
+              <span class="hypo-label">AI SUSPICION SCANNER:</span>
+              <div class="hypo-text" id="whyHypothesisText">"DETECTING QUESTIONABLE DAILY MOVEMENTS..."</div>
+            </div>
+
             <div class="movement-monitor-box">
               <div class="meter-title-row">
-                <span>MOVEMENT LEVEL</span>
+                <span>ANALYSIS PROGRESS</span>
                 <span id="whyMeterPercentage">0%</span>
               </div>
               <div class="block-meter" id="whyBlockMeter">
@@ -361,8 +389,8 @@
             </div>
 
             <div class="scanning-telemetry">
-              <div class="tele-row"><span>CALIBRATING SINE WAVE:</span> <span class="cyan">ACTIVE</span></div>
-              <div class="tele-row"><span>NEURO-KINETIC DECODER:</span> <span class="amber">RUNNING</span></div>
+              <div class="tele-row"><span>BIOMETRIC AWKWARDNESS:</span> <span class="cyan" id="whyAwkwardVal">CALIBRATING</span></div>
+              <div class="tele-row"><span>DOMESTIC ROUTINE MATCH:</span> <span class="amber" id="whyRoutineVal">SEARCHING...</span></div>
             </div>
           </div>
 
@@ -430,16 +458,25 @@
           <div class="car-hud-bar">
             <div class="car-hud-item">
               <span class="hud-label">TIME:</span>
-              <span class="hud-val timer-val" id="carTimerVal">30.0s</span>
+              <span class="hud-val timer-val" id="carTimerVal">45.0s</span>
+            </div>
+            <div class="car-hud-item">
+              <span class="hud-label">DISTANCE:</span>
+              <span class="hud-val cyan" id="carDistanceVal">0 / 1000m</span>
+            </div>
+            <div class="car-hud-item">
+              <span class="hud-label">SPEED:</span>
+              <span class="hud-val amber" id="carSpeedVal">0 MPH</span>
             </div>
             <div class="car-hud-item">
               <span class="hud-label">SHAKES:</span>
               <span class="hud-val" id="carShakeCountVal">0</span>
             </div>
-            <div class="car-hud-item">
-              <span class="hud-label">SPEED:</span>
-              <span class="hud-val cyan" id="carSpeedVal">0 MPH</span>
-            </div>
+          </div>
+
+          <!-- 1000m MILESTONE CALLOUT BANNER -->
+          <div class="milestone-callout" id="carMilestoneMsg">
+            RACE LENGTH: 1000 METERS // SHAKE CONTINUOUSLY TO SUSTAIN SPEED!
           </div>
 
           <!-- HORIZONTAL PIXEL RACE TRACK -->
@@ -448,6 +485,7 @@
               <div class="pixel-tree t1">🌲</div>
               <div class="pixel-tree t2">🌲</div>
               <div class="pixel-tree t3">🌲</div>
+              <div class="pixel-tree t4">🌲</div>
             </div>
             
             <div class="pixel-asphalt" id="raceAsphalt">
@@ -482,18 +520,25 @@
               </div>
             </div>
 
-            <div class="track-lane-dividers"></div>
+            <!-- DISTANCE PROGRESS BAR -->
+            <div class="distance-track-bar">
+              <div class="distance-fill" id="carDistanceFill" style="width: 0%;"></div>
+              <div class="milestone-marker m250"><span>250m</span></div>
+              <div class="milestone-marker m500"><span>500m</span></div>
+              <div class="milestone-marker m750"><span>750m</span></div>
+              <div class="milestone-marker m1000"><span>1000m 🏁</span></div>
+            </div>
           </div>
 
           <div class="car-controls-hint">
-            <span>SHAKE YOUR SENSOR AS FAST AS POSSIBLE TO MOVE THE CAR!</span>
+            <span>SUSTAIN YOUR SHAKING FOR THE FULL 1000 METERS!</span>
           </div>
 
           <!-- CAR GAME START OVERLAY / COUNTDOWN -->
           <div class="car-overlay-countdown" id="carStartOverlay">
             <div class="overlay-box">
               <h3>READY TO SHAKE?</h3>
-              <p>Move the sensor or smash the SHAKE button repeatedly to drive!</p>
+              <p>Shake your physical MPU6050 sensor to drive the car across the finish line!</p>
               <button id="carStartRaceBtn" class="arcade-primary-btn">
                 [ START RACE ]
               </button>
@@ -570,7 +615,7 @@
           <!-- STAGE 2: 3-2-1 COUNTDOWN -->
           <div class="battle-sub-panel" id="battle-countdown-phase" style="display: none;">
             <div class="countdown-display" id="battleCountdownNumber">3</div>
-            <p class="countdown-hint">PREPARE FOR COMPLETE SYSTEM CHAOS</p>
+            <p class="countdown-hint">PREPARE TO SHAKE YOUR MPU6050 SENSOR FOR 10 SECONDS!</p>
           </div>
 
           <!-- STAGE 3: LIVE ACTIVE BATTLE ROUND -->
@@ -838,6 +883,17 @@
                   <div class="gauge-bar-track usefulness-track">
                     <div class="gauge-bar-fill usefulness-fill" id="usefulnessBar" style="width: 0%;"></div>
                   </div>
+                </div>
+              </div>
+
+              <!-- REAL-TIME HARDWARE DATA READOUT -->
+              <div class="hardware-raw-telemetry">
+                <div class="raw-tele-title">LIVE MPU-6050 RAW VECTORS</div>
+                <div class="raw-tele-grid">
+                  <div class="raw-item"><span class="r-lbl">ACCEL X/Y/Z:</span> <span class="r-val cyan" id="rawAccelXYZ">0.00, 0.00, 1.00 g</span></div>
+                  <div class="raw-item"><span class="r-lbl">GYRO X/Y/Z:</span> <span class="r-val amber" id="rawGyroXYZ">0.0, 0.0, 0.0 °/s</span></div>
+                  <div class="raw-item"><span class="r-lbl">ACCEL MAG:</span> <span class="r-val" id="rawAccelMag">1.000 g</span></div>
+                  <div class="raw-item"><span class="r-lbl">GYRO MAG:</span> <span class="r-val" id="rawGyroMag">0.000 °/s</span></div>
                 </div>
               </div>
 
