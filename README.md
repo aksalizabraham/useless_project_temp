@@ -91,7 +91,7 @@ For Hardware
 
 ### Project Demo
 # Video
-(https://drive.google.com/file/d/1Cmh4Ok6hL8Nsqe7AzDc4bOFWvcvNUfZq/view?usp=sharing)
+(https://drive.google.com/file/d/1UbiqIaylccaH7zb8-MZZ7K7rIAHoEcMM/view?usp=sharing)
 *This video demonstrates the motion input, game feedback, and final project working condition.*
 
 
