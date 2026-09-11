@@ -1,6 +1,6 @@
 <img width="1280" height="640" alt="Project banner" src="https://github.com/user-attachments/assets/8920b256-2ba8-4988-b824-5351134eb4bd" />
 
-# Chatpate 🎯
+# Chatpate
 
 ## Basic Details
 ### Team Name: Chatpate
@@ -61,45 +61,40 @@ python3 -m http.server 8000
 For Software:
 
 # Screenshots
-![Game Screen](Add screenshot of the main arcade interface here)
+<img width="1649" height="958" alt="SS1" src="https://github.com/user-attachments/assets/7ae6daf9-9424-40ad-b5e0-05a8ea7cbc3b" />
 *Main retro arcade screen showing the visual interface and game selection.*
 
-![Motion Feedback](Add screenshot of sensor feedback or live intensity meter here)
-*Live shaking intensity feedback from the MPU6050 sensor.*
+<img width="1632" height="956" alt="SS2" src="https://github.com/user-attachments/assets/44315781-177b-44b1-982f-3d4f210870a9" />
+*Game Dashboard*
 
-![Gameplay Demo](Add screenshot of a gameplay challenge here)
-*Game challenge screen demonstrating user interaction and motion-based scoring.*
+<img width="1636" height="944" alt="SS3" src="https://github.com/user-attachments/assets/b199bc67-1010-4376-b4fa-a7a020be3543" />
+*Game Interface*
+
+For Hardware
 
 # Diagrams
-![Workflow Diagram](Add architecture or flowchart here)
+<img width="1536" height="1024" alt="workflow" src="https://github.com/user-attachments/assets/c8d39963-b268-45d2-b349-4b29f25a7d85" />
 *This diagram shows how the MPU6050 sensor, ESP32, and browser interface work together.*
 
-For Hardware:
-
 # Schematic & Circuit
-![Circuit](Add circuit diagram here)
+<img width="1536" height="1024" alt="circuit" src="https://github.com/user-attachments/assets/3c0b7bbe-6ddd-4d32-aec6-17bd1a709b6b" />
 *Connection diagram for ESP32, MPU6050, buzzer, and display.*
 
-![Schematic](Add schematic diagram here)
-*Hardware schematic representing the complete motion sensing system.*
+
 
 # Build Photos
-![Components](Add photo of all hardware components here)
-*ESP32, sensor, buzzer, display, and other electronic modules used in the project.*
-
-![Build Process](Add photo of the assembled hardware here)
+<img width="3024" height="4032" alt="hardware circuit" src="https://github.com/user-attachments/assets/9139941c-d448-4be6-ad1c-35b610ea4f2a" />
 *The hardware setup and wiring process during assembly.*
 
-![Final Build](Add final project image here)
+<img width="3024" height="4032" alt="circuit connected to lap" src="https://github.com/user-attachments/assets/81da3f0d-8d26-419e-9049-330fd24e71f1" />
 *The completed motion-analysis project ready for demonstration.*
 
 ### Project Demo
 # Video
-[Add demo video link here]
+(https://drive.google.com/file/d/1Cmh4Ok6hL8Nsqe7AzDc4bOFWvcvNUfZq/view?usp=sharing)
 *This video demonstrates the motion input, game feedback, and final project working condition.*
 
-# Additional Demos
-[Add any extra demo links or testing videos here]
+
 
 ## Team Contributions
 - Aksa Liz Abraham: Equal contribution to project planning, concept development, sensor integration, and final system coordination.
