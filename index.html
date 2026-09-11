@@ -1,1 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WHY DID YOU MOVE LIKE THAT? // Retro Arcade Machine</title>
+  
+  <!-- Retro Pixel & Scientific Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Chakra+Petch:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="arcade-body crt-overlay">
+  <!-- Scanline and CRT Glow Effects -->
+  <div class="scanlines" aria-hidden="true"></div>
+  <div class="vignette-overlay" aria-hidden="true"></div>
+  <div class="arcade-cabinet-frame" aria-hidden="true"></div>
 
+  <!-- MAIN ARCADE WRAPPER -->
+  <div class="arcade-cabinet">
+    
+    <!-- ARCADE MARQUEE TOP BAR -->
+    <header class="cabinet-marquee">
+      <div class="marquee-left">
+        <span class="coin-insert-badge">CREDITS: 99</span>
+        <span class="cabinet-sep">|</span>
+        <span class="hardware-badge">ESP32 + MPU6050</span>
+      </div>
+      <div class="marquee-center">
+        <div class="marquee-title-wrap">
+          <span class="star-blink">★</span>
+          <span class="marquee-text">UNNECESSARY ARCADE</span>
+          <span class="star-blink">★</span>
+        </div>
+      </div>
+      <div class="marquee-right">
+        <button id="soundToggleBtn" class="pixel-btn sound-btn" title="Toggle 8-bit Audio">
+          <span class="sound-icon">🔊</span> AUDIO: <span id="soundStatusText">ON</span>
+        </button>
+        <span class="cabinet-time" id="cabinetTime">00:00:00</span>
+      </div>
+    </header>
+
+    <!-- UNIVERSAL MOVEMENT CONTROLLER / SIMULATION HELPER (STICKY PIXEL BAR) -->
+    <div class="universal-sensor-bar" id="sensorSimulatorBar">
+      <div class="sensor-indicator">
+        <span class="sensor-led" id="sensorLed"></span>
+        <span class="sensor-label">SENSOR INPUT:</span>
+        <span class="sensor-source" id="sensorSourceText">SIMULATED (MPU6050 READY)</span>
+      </div>
+      <div class="sensor-power-meter">
+        <span class="meter-label">INTENSITY:</span>
+        <div class="meter-bar-track">
+          <div class="meter-bar-fill" id="liveIntensityBar" style="width: 0%;"></div>
+        </div>
+        <span class="meter-num" id="liveIntensityNum">0%</span>
+      </div>
+      <div class="sensor-trigger-actions">
+        <button id="manualShakeBtn" class="pixel-btn trigger-btn">
+          ⚡ SHAKE SENSOR (OR PRESS SPACE)
+        </button>
+      </div>
+    </div>
+
+    <!-- SCREENS CONTAINER -->
+    <main class="arcade-screen-viewport" id="screenViewport">
+
+      <!-- ========================================================
+           SCREEN 1: DRAMATIC RETRO ARCADE START SCREEN
+           ======================================================== -->
+      <section class="arcade-screen active" id="screen-start">
+        <div class="start-screen-content">
+          
+          <div class="gov-warning-banner">
+            <span class="warning-triangle">⚠</span>
+            <span>DEPARTMENT OF UNNECESSARY MOVEMENT</span>
+            <span class="warning-triangle">⚠</span>
+          </div>
+
+          <div class="title-zone">
+            <h1 class="pixel-main-title">
+              <span class="title-layer back">WHY DID YOU MOVE LIKE THAT?</span>
+              <span class="title-layer front">WHY DID YOU MOVE LIKE THAT?</span>
+            </h1>
+            <p class="pixel-subtitle">
+              "An unnecessarily advanced system for investigating completely unnecessary movement."
+            </p>
+          </div>
+
+          <!-- ANIMATED PIXEL CHARACTER WEARING MOTION SENSOR -->
+          <div class="pixel-hero-stage">
+            <div class="pixel-stage-platform"></div>
+            <div class="pixel-character-wrapper" id="startCharacter">
+              <!-- Pixel Art Sprite Built with pure SVG -->
+              <svg class="pixel-char-svg" viewBox="0 0 48 64" width="120" height="160" shape-rendering="crispEdges">
+                <!-- Sensor Headband & Blinking MPU6050 sensor on forehead -->
+                <rect x="16" y="8" width="16" height="4" fill="#00f0ff" />
+                <rect x="22" y="4" width="6" height="6" fill="#ffb703" class="pixel-sensor-box" />
+                <rect x="24" y="2" width="2" height="2" fill="#ff0055" class="pixel-sensor-led" />
+                <!-- Head -->
+                <rect x="18" y="12" width="12" height="12" fill="#ffdbac" />
+                <rect x="18" y="8" width="12" height="4" fill="#4a2e18" />
+                <rect x="20" y="16" width="2" height="2" fill="#000000" />
+                <rect x="26" y="16" width="2" height="2" fill="#000000" />
+                <rect x="22" y="20" width="4" height="2" fill="#e06f6f" />
+                <!-- Sensor Wire to Backpack -->
+                <path d="M 22 7 Q 14 12 14 26" stroke="#ffb703" stroke-width="2" fill="none" />
+                <!-- ESP32 Backpack -->
+                <rect x="12" y="24" width="4" height="14" fill="#1b5e20" />
+                <rect x="11" y="26" width="2" height="4" fill="#00e676" class="pixel-esp-led" />
+                <!-- Torso / Shirt -->
+                <rect x="16" y="24" width="16" height="16" fill="#0288d1" />
+                <rect x="20" y="28" width="8" height="8" fill="#ffffff" />
+                <text x="22" y="35" font-family="monospace" font-size="7" fill="#000">?</text>
+                <!-- Arms / Waving Sensor -->
+                <g class="char-arm-left">
+                  <rect x="12" y="26" width="4" height="12" fill="#0288d1" />
+                  <rect x="12" y="38" width="4" height="4" fill="#ffdbac" />
+                </g>
+                <g class="char-arm-right">
+                  <rect x="32" y="26" width="4" height="12" fill="#0288d1" />
+                  <rect x="32" y="38" width="4" height="4" fill="#ffdbac" />
+                </g>
+                <!-- Legs -->
+                <rect x="18" y="40" width="5" height="16" fill="#263238" class="char-leg-l" />
+                <rect x="25" y="40" width="5" height="16" fill="#263238" class="char-leg-r" />
+                <!-- Shoes -->
+                <rect x="16" y="56" width="7" height="4" fill="#ff5722" />
+                <rect x="25" y="56" width="7" height="4" fill="#ff5722" />
+              </svg>
+            </div>
+            <div class="sensor-tag-callout">
+              <span class="callout-arrow">←</span>
+              <span>MPU6050 KINETIC STRAP</span>
+            </div>
+          </div>
+
+          <!-- STATUS INDICATORS REQUIRED BY SPEC -->
+          <div class="hardware-status-row">
+            <div class="hw-stat-item">
+              <span class="hw-name">ESP32</span>
+              <span class="hw-dot connected">●</span>
+              <span class="hw-text">CONNECTED</span>
+            </div>
+            <div class="hw-stat-item">
+              <span class="hw-name">MPU6050</span>
+              <span class="hw-dot connected">●</span>
+              <span class="hw-text">CONNECTED</span>
+            </div>
+            <div class="hw-stat-item alert">
+              <span class="hw-name">BRAIN</span>
+              <span class="hw-dot questionable">●</span>
+              <span class="hw-text">QUESTIONABLE</span>
+            </div>
+          </div>
+
+          <!-- LARGE PRESS START BUTTON & ARCADE BLINK -->
+          <div class="start-action-zone">
+            <button id="pressStartBtn" class="arcade-primary-btn start-press-btn">
+              ▶ PRESS START
+            </button>
+            <div class="insert-coin-text">
+              <span class="blink-fast">INSERT HUMAN TO CONTINUE</span>
+            </div>
+          </div>
+
+          <!-- SECONDARY NAVIGATION: DIAGNOSTIC LAB MODE (PRESERVED MILESTONE 1) -->
+          <div class="start-footer-nav">
+            <button id="gotoLabBtn" class="pixel-ghost-btn">
+              🔬 ACCESS HARDWARE DIAGNOSTIC LAB
+            </button>
+          </div>
+
+        </div>
+      </section>
+
+
+      <!-- ========================================================
+           SCREEN 2: ARCADE GAME SELECT (UNNECESSARY ARCADE)
+           ======================================================== -->
+      <section class="arcade-screen" id="screen-arcade">
+        <div class="arcade-menu-content">
+          
+          <div class="screen-header">
+            <div class="cabinet-title-box">
+              <h2 class="pixel-header-title">UNNECESSARY ARCADE</h2>
+              <p class="pixel-header-sub">SELECT A COMPLETELY POINTLESS EXPERIMENT</p>
+            </div>
+            <div class="header-nav-btns">
+              <button id="viewLeaderboardBtn" class="pixel-btn trophy-btn">
+                🏆 HALL OF SHAME
+              </button>
+              <button id="backToStartBtn" class="pixel-btn back-btn">
+                ← START
+              </button>
+            </div>
+          </div>
+
+          <div class="game-select-instruction">
+            <span>CHOOSE YOUR REASON TO MOVE UNREASONABLY:</span>
+          </div>
+
+          <!-- GAMES GRID: 3 REAL GAMES + 7 FAKE ONES -->
+          <div class="games-grid">
+            
+            <!-- REAL GAME 01 -->
+            <div class="game-card playable" data-game="why" tabindex="0">
+              <div class="card-badge real">PLAYABLE</div>
+              <div class="game-num">01</div>
+              <div class="game-icon">🔬</div>
+              <h3 class="game-title">WHY DID YOU MOVE LIKE THAT?</h3>
+              <p class="game-desc">The sensor observes your movement and invents a scientifically ridiculous excuse.</p>
+              <button class="pixel-btn play-btn">INSERT HUMAN ▶</button>
+            </div>
+
+            <!-- REAL GAME 02 -->
+            <div class="game-card playable" data-game="car" tabindex="0">
+              <div class="card-badge real">PLAYABLE</div>
+              <div class="game-num">02</div>
+              <div class="game-icon">🚗</div>
+              <h3 class="game-title">SHAKE THE CAR</h3>
+              <p class="game-desc">Shake the sensor frantically to drive a 16-bit car to the finish line in 30s.</p>
+              <button class="pixel-btn play-btn">START ENGINE ▶</button>
+            </div>
+
+            <!-- REAL GAME 03 -->
+            <div class="game-card playable" data-game="battle" tabindex="0">
+              <div class="card-badge real">PLAYABLE</div>
+              <div class="game-num">03</div>
+              <div class="game-icon">⚡</div>
+              <h3 class="game-title">SHAKE BATTLE</h3>
+              <p class="game-desc">The ultimate competitive flailing showdown. Shake for maximum score & fame.</p>
+              <button class="pixel-btn play-btn">ENTER BATTLE ▶</button>
+            </div>
+
+            <!-- FAKE GAME 04 -->
+            <div class="game-card fake" data-fake="brain" tabindex="0">
+              <div class="card-badge fake-badge">POINTLESS</div>
+              <div class="game-num">04</div>
+              <div class="game-icon">🧠</div>
+              <h3 class="game-title">BRAIN CALIBRATION</h3>
+              <p class="game-desc">Tests cortical bandwidth for questionable life decisions.</p>
+              <span class="fake-click-hint">[ TEST NOW ]</span>
+            </div>
+
+            <!-- FAKE GAME 05 -->
+            <div class="game-card fake" data-fake="dance" tabindex="0">
+              <div class="card-badge fake-badge">POINTLESS</div>
+              <div class="game-num">05</div>
+              <div class="game-icon">💃</div>
+              <h3 class="game-title">DANCE DETECTOR</h3>
+              <p class="game-desc">Measures rhythmic failure with zero empathy.</p>
+              <span class="fake-click-hint">[ TEST NOW ]</span>
+            </div>
+
+            <!-- FAKE GAME 06 -->
+            <div class="game-card fake" data-fake="chair" tabindex="0">
+              <div class="card-badge fake-badge">POINTLESS</div>
+              <div class="game-num">06</div>
+              <div class="game-icon">🪑</div>
+              <h3 class="game-title">CHAIR STABILITY TEST</h3>
+              <p class="game-desc">Proves whether you or your furniture is the actual problem.</p>
+              <span class="fake-click-hint">[ TEST NOW ]</span>
+            </div>
+
+            <!-- FAKE GAME 07 -->
+            <div class="game-card fake" data-fake="robot" tabindex="0">
+              <div class="card-badge fake-badge">POINTLESS</div>
+              <div class="game-num">07</div>
+              <div class="game-icon">🤖</div>
+              <h3 class="game-title">EMOTIONAL SUPPORT ROBOT</h3>
+              <p class="game-desc">An AI that responds to your motion with mild judgment.</p>
+              <span class="fake-click-hint">[ TEST NOW ]</span>
+            </div>
+
+            <!-- FAKE GAME 08 -->
+            <div class="game-card fake" data-fake="chicken" tabindex="0">
+              <div class="card-badge fake-badge">POINTLESS</div>
+              <div class="game-num">08</div>
+              <div class="game-icon">🐔</div>
+              <h3 class="game-title">CHICKEN ESCAPE</h3>
+              <p class="game-desc">Run like poultry from impending technological doom.</p>
+              <span class="fake-click-hint">[ TEST NOW ]</span>
+            </div>
+
+            <!-- FAKE GAME 09 -->
+            <div class="game-card fake" data-fake="stock" tabindex="0">
+              <div class="card-badge fake-badge">POINTLESS</div>
+              <div class="game-num">09</div>
+              <div class="game-icon">📈</div>
+              <h3 class="game-title">STOCK MARKET SHAKE</h3>
+              <p class="game-desc">Shake away your financial woes with zero ROI.</p>
+              <span class="fake-click-hint">[ TEST NOW ]</span>
+            </div>
+
+            <!-- FAKE GAME 10 -->
+            <div class="game-card fake" data-fake="blink" tabindex="0">
+              <div class="card-badge fake-badge">POINTLESS</div>
+              <div class="game-num">10</div>
+              <div class="game-icon">👁</div>
+              <h3 class="game-title">ADVANCED BLINKING SIMULATOR</h3>
+              <p class="game-desc">Next-gen eyelid kinematics for sedentary champions.</p>
+              <span class="fake-click-hint">[ TEST NOW ]</span>
+            </div>
+
+          </div>
+
+          <div class="arcade-bottom-bar">
+            <span>TINKERHUB USELESS ARCADE // 3 WORKING GAMES // 7 SUSPICIOUS EXPERIMENTS</span>
+          </div>
+
+        </div>
+      </section>
+
+
+      <!-- ========================================================
+           SCREEN 3: REAL GAME 1 - WHY DID YOU MOVE LIKE THAT?
+           ======================================================== -->
+      <section class="arcade-screen" id="screen-game-why">
+        <div class="game-screen-content">
+          
+          <div class="screen-header">
+            <div class="game-tag-badge">GAME 01 // SCIENTIFIC INQUIRY</div>
+            <button class="pixel-btn back-to-arcade-btn">← ARCADE</button>
+          </div>
+
+          <h2 class="game-heading">WHY DID YOU MOVE LIKE THAT?</h2>
+
+          <!-- PHASE 1: PLAYER SETUP -->
+          <div class="game-sub-panel" id="why-setup-phase">
+            <div class="player-form-box">
+              <label for="whyPlayerName" class="form-label">ENTER SUBJECT NAME:</label>
+              <div class="input-row">
+                <span class="input-arrow">▶</span>
+                <input type="text" id="whyPlayerName" class="pixel-input" placeholder="HUMAN #404" maxlength="15" autofocus>
+              </div>
+              <button id="whyStartBtn" class="arcade-primary-btn">
+                [ START INVESTIGATION ]
+              </button>
+            </div>
+          </div>
+
+          <!-- PHASE 2: OBSERVATION & MOVEMENT WAITING -->
+          <div class="game-sub-panel" id="why-observing-phase" style="display: none;">
+            <div class="get-ready-banner blink-fast">GET READY...</div>
+            <p class="observation-hint">MOVE YOUR SENSOR (OR PRESS THE SHAKE BUTTON)!</p>
+            
+            <div class="movement-monitor-box">
+              <div class="meter-title-row">
+                <span>MOVEMENT LEVEL</span>
+                <span id="whyMeterPercentage">0%</span>
+              </div>
+              <div class="block-meter" id="whyBlockMeter">
+                ░░░░░░░░░░░░░░░░░░░░
+              </div>
+              <div class="movement-detected-tag" id="whyMovementDetectedTag">
+                AWAITING KINETIC DISRUPTION...
+              </div>
+            </div>
+
+            <div class="scanning-telemetry">
+              <div class="tele-row"><span>CALIBRATING SINE WAVE:</span> <span class="cyan">ACTIVE</span></div>
+              <div class="tele-row"><span>NEURO-KINETIC DECODER:</span> <span class="amber">RUNNING</span></div>
+            </div>
+          </div>
+
+          <!-- PHASE 3: RESULT REVELATION -->
+          <div class="game-sub-panel" id="why-result-phase" style="display: none;">
+            <div class="result-card dramatic-reveal">
+              <div class="result-header-tag">KINETIC ANALYSIS COMPLETE</div>
+              
+              <div class="result-subject-line">
+                SUBJECT: <span id="whyResultPlayer" class="cyan">HUMAN</span>
+              </div>
+
+              <div class="result-quote-box">
+                <div class="quote-label">OFFICIAL SCIENTIFIC CONCLUSION:</div>
+                <div class="ridiculous-explanation" id="whyExplanationText">
+                  "You moved because you remembered something embarrassing from 2019."
+                </div>
+              </div>
+
+              <div class="result-stats-grid">
+                <div class="res-stat-box">
+                  <span class="stat-lbl">CONFIDENCE:</span>
+                  <span class="stat-val" id="whyConfidenceVal">99.4%</span>
+                </div>
+                <div class="res-stat-box">
+                  <span class="stat-lbl">USEFULNESS:</span>
+                  <span class="stat-val alert">0%</span>
+                </div>
+                <div class="res-stat-box">
+                  <span class="stat-lbl">SCIENTIFIC VALUE:</span>
+                  <span class="stat-val">ABSOLUTE ZERO</span>
+                </div>
+              </div>
+
+              <div class="result-btn-row">
+                <button id="whyPlayAgainBtn" class="arcade-primary-btn">
+                  PLAY AGAIN
+                </button>
+                <button class="pixel-btn back-to-arcade-btn">
+                  ← ARCADE
+                </button>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+
+      <!-- ========================================================
+           SCREEN 4: REAL GAME 2 - SHAKE THE CAR
+           ======================================================== -->
+      <section class="arcade-screen" id="screen-game-car">
+        <div class="game-screen-content">
+          
+          <div class="screen-header">
+            <div class="game-tag-badge">GAME 02 // 16-BIT KINETIC RACER</div>
+            <button class="pixel-btn back-to-arcade-btn">← ARCADE</button>
+          </div>
+
+          <h2 class="game-heading">SHAKE THE CAR</h2>
+
+          <!-- CAR RACE HUD -->
+          <div class="car-hud-bar">
+            <div class="car-hud-item">
+              <span class="hud-label">TIME:</span>
+              <span class="hud-val timer-val" id="carTimerVal">30.0s</span>
+            </div>
+            <div class="car-hud-item">
+              <span class="hud-label">SHAKES:</span>
+              <span class="hud-val" id="carShakeCountVal">0</span>
+            </div>
+            <div class="car-hud-item">
+              <span class="hud-label">SPEED:</span>
+              <span class="hud-val cyan" id="carSpeedVal">0 MPH</span>
+            </div>
+          </div>
+
+          <!-- HORIZONTAL PIXEL RACE TRACK -->
+          <div class="race-track-container">
+            <div class="track-scenery-top">
+              <div class="pixel-tree t1">🌲</div>
+              <div class="pixel-tree t2">🌲</div>
+              <div class="pixel-tree t3">🌲</div>
+            </div>
+            
+            <div class="pixel-asphalt" id="raceAsphalt">
+              <div class="track-finish-line">
+                <span class="flag-icon">🏁</span>
+                <span class="finish-text">FINISH</span>
+              </div>
+              
+              <!-- THE PLAYER CAR -->
+              <div class="player-car" id="playerCar">
+                <div class="car-sprite">
+                  <!-- Pixel Car SVG -->
+                  <svg width="60" height="32" viewBox="0 0 60 32" shape-rendering="crispEdges">
+                    <!-- Car Body -->
+                    <rect x="8" y="8" width="40" height="14" fill="#e53935" />
+                    <rect x="18" y="2" width="22" height="10" fill="#c62828" />
+                    <!-- Windows -->
+                    <rect x="22" y="4" width="8" height="6" fill="#80d8ff" />
+                    <rect x="32" y="4" width="6" height="6" fill="#80d8ff" />
+                    <!-- Wheels -->
+                    <rect x="12" y="20" width="8" height="8" fill="#212121" />
+                    <rect x="14" y="22" width="4" height="4" fill="#9e9e9e" />
+                    <rect x="38" y="20" width="8" height="8" fill="#212121" />
+                    <rect x="40" y="22" width="4" height="4" fill="#9e9e9e" />
+                    <!-- Headlight -->
+                    <rect x="46" y="10" width="4" height="4" fill="#ffeb3b" />
+                    <!-- Sensor mounted on roof -->
+                    <rect x="26" y="0" width="6" height="4" fill="#00f0ff" />
+                  </svg>
+                  <div class="exhaust-smoke" id="carExhaust"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="track-lane-dividers"></div>
+          </div>
+
+          <div class="car-controls-hint">
+            <span>SHAKE YOUR SENSOR AS FAST AS POSSIBLE TO MOVE THE CAR!</span>
+          </div>
+
+          <!-- CAR GAME START OVERLAY / COUNTDOWN -->
+          <div class="car-overlay-countdown" id="carStartOverlay">
+            <div class="overlay-box">
+              <h3>READY TO SHAKE?</h3>
+              <p>Move the sensor or smash the SHAKE button repeatedly to drive!</p>
+              <button id="carStartRaceBtn" class="arcade-primary-btn">
+                [ START RACE ]
+              </button>
+            </div>
+          </div>
+
+          <!-- CAR RESULT MODAL / SCREEN -->
+          <div class="car-result-overlay" id="carResultOverlay" style="display: none;">
+            <div class="car-result-card">
+              <h3 class="car-result-title" id="carResultTitle">FINISH!!!</h3>
+              
+              <div class="car-stats-list">
+                <div class="c-stat-row">
+                  <span>TIME:</span>
+                  <span class="c-stat-val" id="carFinalTime">12.4 seconds</span>
+                </div>
+                <div class="c-stat-row">
+                  <span>SHAKES:</span>
+                  <span class="c-stat-val" id="carFinalShakes">142</span>
+                </div>
+                <div class="c-stat-row">
+                  <span>USEFULNESS:</span>
+                  <span class="c-stat-val alert">0%</span>
+                </div>
+              </div>
+
+              <div class="car-performance-quote" id="carPerformanceQuote">
+                "Technically you won."
+              </div>
+
+              <div class="result-btn-row">
+                <button id="carPlayAgainBtn" class="arcade-primary-btn">
+                  PLAY AGAIN
+                </button>
+                <button class="pixel-btn back-to-arcade-btn">
+                  ← ARCADE
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+
+      <!-- ========================================================
+           SCREEN 5: REAL GAME 3 - SHAKE BATTLE
+           ======================================================== -->
+      <section class="arcade-screen" id="screen-game-battle">
+        <div class="game-screen-content">
+          
+          <div class="screen-header">
+            <div class="game-tag-badge">GAME 03 // COMPETITIVE ARENA</div>
+            <button class="pixel-btn back-to-arcade-btn">← ARCADE</button>
+          </div>
+
+          <h2 class="game-heading">SHAKE BATTLE</h2>
+
+          <!-- STAGE 1: PLAYER SETUP -->
+          <div class="battle-sub-panel" id="battle-setup-phase">
+            <div class="player-form-box">
+              <div class="setup-title">PLAYER SETUP</div>
+              <label for="battlePlayerName" class="form-label">ENTER YOUR NAME:</label>
+              <div class="input-row">
+                <span class="input-arrow">▶</span>
+                <input type="text" id="battlePlayerName" class="pixel-input" placeholder="WARRIOR_01" maxlength="12">
+              </div>
+              <button id="battleReadyBtn" class="arcade-primary-btn">
+                [ READY ]
+              </button>
+            </div>
+          </div>
+
+          <!-- STAGE 2: 3-2-1 COUNTDOWN -->
+          <div class="battle-sub-panel" id="battle-countdown-phase" style="display: none;">
+            <div class="countdown-display" id="battleCountdownNumber">3</div>
+            <p class="countdown-hint">PREPARE FOR COMPLETE SYSTEM CHAOS</p>
+          </div>
+
+          <!-- STAGE 3: LIVE ACTIVE BATTLE ROUND -->
+          <div class="battle-sub-panel" id="battle-active-phase" style="display: none;">
+            
+            <div class="battle-hud-grid">
+              <div class="b-hud-card">
+                <span class="b-hud-lbl">PLAYER:</span>
+                <span class="b-hud-val cyan" id="battleActivePlayerName">PLAYER</span>
+              </div>
+              <div class="b-hud-card">
+                <span class="b-hud-lbl">TIME LEFT:</span>
+                <span class="b-hud-val timer-val" id="battleTimeLeft">10s</span>
+              </div>
+              <div class="b-hud-card">
+                <span class="b-hud-lbl">CURRENT SCORE:</span>
+                <span class="b-hud-val amber" id="battleCurrentScore">0</span>
+              </div>
+            </div>
+
+            <!-- BATTLE CHARACTER THAT SHAKES VIGOROUSLY -->
+            <div class="battle-arena">
+              <div class="battle-character" id="battleFighter">
+                <!-- Retro Pixel Fighter SVG -->
+                <svg width="90" height="120" viewBox="0 0 45 60" shape-rendering="crispEdges">
+                  <!-- Sensor headband glowing -->
+                  <rect x="15" y="6" width="15" height="4" fill="#ff1744" />
+                  <rect x="20" y="2" width="5" height="4" fill="#00e5ff" class="battle-sensor-glow" />
+                  <!-- Head -->
+                  <rect x="15" y="10" width="15" height="12" fill="#ffd54f" />
+                  <rect x="17" y="14" width="3" height="3" fill="#000" />
+                  <rect x="25" y="14" width="3" height="3" fill="#000" />
+                  <!-- Body -->
+                  <rect x="12" y="22" width="21" height="18" fill="#651fff" />
+                  <!-- Gloves / Arms raised -->
+                  <rect x="6" y="18" width="6" height="10" fill="#ff1744" />
+                  <rect x="33" y="18" width="6" height="10" fill="#ff1744" />
+                  <!-- Legs -->
+                  <rect x="14" y="40" width="6" height="16" fill="#311b92" />
+                  <rect x="25" y="40" width="6" height="16" fill="#311b92" />
+                  <!-- Boots -->
+                  <rect x="12" y="54" width="8" height="6" fill="#ffab00" />
+                  <rect x="25" y="54" width="8" height="6" fill="#ffab00" />
+                </svg>
+                <div class="shake-particles" id="shakeParticles"></div>
+              </div>
+            </div>
+
+            <!-- SHAKE POWER GAUGE -->
+            <div class="shake-power-section">
+              <div class="power-title-row">
+                <span>SHAKE POWER</span>
+                <span id="battlePowerPercent">0%</span>
+              </div>
+              <div class="power-bar-track">
+                <div class="power-bar-fill" id="battlePowerFill" style="width: 0%;"></div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- STAGE 4: SHAKE COMPLETE RESULT -->
+          <div class="battle-sub-panel" id="battle-result-phase" style="display: none;">
+            <div class="result-card dramatic-reveal">
+              <div class="battle-complete-banner">SHAKE COMPLETE</div>
+              
+              <div class="battle-result-player" id="battleResultPlayer">PLAYER</div>
+              
+              <div class="battle-big-score">
+                <span class="score-label">SCORE:</span>
+                <span class="score-number" id="battleFinalScore">0</span>
+              </div>
+
+              <div class="battle-rank-title-box">
+                <span class="rank-prefix">TITLE ACHIEVED:</span>
+                <div class="battle-rank-title" id="battleRankTitle">"CASUAL SHAKER"</div>
+              </div>
+
+              <div class="leaderboard-save-notice" id="battleSaveNotice">
+                ✔ SCORE RECORDED IN HALL OF SHAME!
+              </div>
+
+              <div class="result-btn-row">
+                <button id="battleViewLeaderboardBtn" class="pixel-btn trophy-btn">
+                  🏆 VIEW LEADERBOARD
+                </button>
+                <button id="battlePlayAgainBtn" class="arcade-primary-btn">
+                  PLAY AGAIN
+                </button>
+                <button class="pixel-btn back-to-arcade-btn">
+                  ← ARCADE
+                </button>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+
+      <!-- ========================================================
+           SCREEN 6: LEADERBOARD (HALL OF SHAME)
+           ======================================================== -->
+      <section class="arcade-screen" id="screen-leaderboard">
+        <div class="game-screen-content">
+          
+          <div class="screen-header">
+            <div class="game-tag-badge">TOP SHAKERS // ALL-TIME ARCHIVE</div>
+            <button class="pixel-btn back-to-arcade-btn">← ARCADE</button>
+          </div>
+
+          <div class="leaderboard-container">
+            <h2 class="leaderboard-title">🏆 HALL OF SHAME</h2>
+            <p class="leaderboard-sub">RANKED BY COMPLETELY UNNECESSARY EXERTION</p>
+
+            <div class="leaderboard-table" id="leaderboardList">
+              <!-- Dynamically Populated by script.js -->
+            </div>
+
+            <div class="leaderboard-actions">
+              <button id="leadPlayBattleBtn" class="arcade-primary-btn">
+                CHALLENGE LEADERBOARD ▶
+              </button>
+              <button class="pixel-btn back-to-arcade-btn">
+                ← ARCADE
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+
+      <!-- ========================================================
+           SCREEN 7: HARDWARE DIAGNOSTIC LAB (PRESERVED MILESTONE 1 WORK)
+           ======================================================== -->
+      <section class="arcade-screen" id="screen-lab">
+        <div class="console-wrapper">
+          
+          <div class="screen-header">
+            <div class="game-tag-badge cyan">SCIENTIFIC HARDWARE LAB // MILESTONE 1 CONSOLE</div>
+            <button class="pixel-btn back-to-arcade-btn">← RETURN TO ARCADE</button>
+          </div>
+
+          <!-- HERO HEADER CARD -->
+          <section class="hero-card">
+            <div class="card-corner top-left"></div>
+            <div class="card-corner top-right"></div>
+            <div class="card-corner bottom-left"></div>
+            <div class="card-corner bottom-right"></div>
+
+            <div class="hero-meta">
+              <span class="terminal-prefix">[HARDWARE CORE VER 0.0.1-ALPHA]</span>
+              <span class="terminal-prefix">// MPU-6050 TEST BENCH</span>
+            </div>
+
+            <h1 class="main-title">
+              <span class="title-glitch" data-text="WHY DID YOU MOVE LIKE THAT?">WHY DID YOU MOVE LIKE THAT?</span>
+            </h1>
+
+            <p class="main-subtitle">
+              "An unnecessarily advanced system for investigating completely unnecessary movement."
+            </p>
+
+            <div class="directive-banner">
+              <div class="directive-icon">⚡</div>
+              <p class="directive-text">
+                "Put on the sensor. Move unnecessarily. We will scientifically determine why."
+              </p>
+            </div>
+          </section>
+
+          <!-- MIDDLE DASHBOARD: VISUALIZER + STATUS READOUTS -->
+          <section class="dashboard-grid">
+            
+            <!-- LEFT: SCIENTIFIC MOTION/SENSOR VISUALIZATION -->
+            <div class="visualizer-card">
+              <div class="card-corner top-left"></div>
+              <div class="card-corner top-right"></div>
+              <div class="card-corner bottom-left"></div>
+              <div class="card-corner bottom-right"></div>
+
+              <div class="panel-header">
+                <div class="panel-title-wrap">
+                  <span class="panel-dot"></span>
+                  <span class="panel-title">MOTION SENSOR CALIBRATION MATRIX</span>
+                </div>
+                <span class="panel-tag">MPU-6050 VIRTUAL GYROSCOPE</span>
+              </div>
+
+              <div class="canvas-wrapper">
+                <canvas id="sensorCanvas" width="480" height="420"></canvas>
+                <div class="canvas-reticle-overlay">
+                  <div class="reticle-line horiz"></div>
+                  <div class="reticle-line vert"></div>
+                  <span class="reticle-label top">AXIS: Z-YAW / [CALIBRATED]</span>
+                  <span class="reticle-label bottom">KINETIC DISPERSION: ACTIVE</span>
+                  <span class="reticle-label left">3-AXIS GYRO</span>
+                  <span class="reticle-label right">3-AXIS ACCEL</span>
+                </div>
+              </div>
+
+              <div class="visualizer-footer">
+                <div class="viz-spec-item">
+                  <span class="spec-label">SENSOR CORE:</span>
+                  <span class="spec-value">6-DOF MPU-6050</span>
+                </div>
+                <div class="viz-spec-item">
+                  <span class="spec-label">PROCESSING UNIT:</span>
+                  <span class="spec-value">ESP-32 WROOM</span>
+                </div>
+                <div class="viz-spec-item">
+                  <span class="spec-label">TELEMETRY LINK:</span>
+                  <span class="spec-value highlight">ONLINE</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- RIGHT: TELEMETRY & DIAGNOSTIC CONSOLE -->
+            <div class="telemetry-card">
+              <div class="card-corner top-left"></div>
+              <div class="card-corner top-right"></div>
+              <div class="card-corner bottom-left"></div>
+              <div class="card-corner bottom-right"></div>
+
+              <div class="panel-header">
+                <div class="panel-title-wrap">
+                  <span class="panel-dot alert"></span>
+                  <span class="panel-title">SYSTEM TELEMETRY READOUT</span>
+                </div>
+                <span class="panel-tag">LIVE DIAGNOSTICS</span>
+              </div>
+
+              <div class="status-gauges">
+                <div class="gauge-item" id="gaugeSystemStatus">
+                  <div class="gauge-top">
+                    <span class="gauge-label">SYSTEM STATUS</span>
+                    <span class="gauge-indicator online" id="systemStatusDot"></span>
+                  </div>
+                  <div class="gauge-value online" id="systemStatusValue">ONLINE</div>
+                  <div class="gauge-bar-track">
+                    <div class="gauge-bar-fill online" id="systemStatusBar" style="width: 100%;"></div>
+                  </div>
+                </div>
+
+                <div class="gauge-item" id="gaugeMotionSensor">
+                  <div class="gauge-top">
+                    <span class="gauge-label">MOTION SENSOR</span>
+                    <span class="gauge-indicator standby" id="sensorStatusDot"></span>
+                  </div>
+                  <div class="gauge-value standby" id="sensorStatusValue">STANDBY</div>
+                  <div class="gauge-subtext" id="sensorSubtext">AWAITING SYSTEM INITIALIZATION</div>
+                </div>
+
+                <div class="gauge-item" id="gaugeUsefulness">
+                  <div class="gauge-top">
+                    <span class="gauge-label">USEFULNESS</span>
+                    <span class="gauge-sublabel">SCIENTIFIC ACCURACY: 0.00%</span>
+                  </div>
+                  <div class="gauge-value-wrap">
+                    <div class="gauge-value usefulness" id="usefulnessValue">0%</div>
+                    <div class="usefulness-pill" id="usefulnessPill">TOTALLY USELESS</div>
+                  </div>
+                  <div class="gauge-bar-track usefulness-track">
+                    <div class="gauge-bar-fill usefulness-fill" id="usefulnessBar" style="width: 0%;"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- DIAGNOSTIC TERMINAL LOG -->
+              <div class="terminal-box">
+                <div class="terminal-bar">
+                  <span class="terminal-title">TERMINAL // DIAGNOSTIC LOG</span>
+                  <span class="terminal-status" id="terminalStatusIndicator">IDLE</span>
+                </div>
+                <div class="terminal-content" id="terminalLog">
+                  <div class="terminal-line dim">> SYSTEM ARMED AND READY.</div>
+                  <div class="terminal-line dim">> AWAITING HUMAN INITIALIZATION SEQUENCE...</div>
+                  <div class="terminal-cursor-line">
+                    <span class="terminal-prompt">&gt;</span>
+                    <span class="cursor-blink">_</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="action-area">
+                <button id="initializeHumanBtn" class="init-btn">
+                  <span class="btn-hazard-stripes"></span>
+                  <span class="btn-inner">
+                    <span class="btn-icon">⚡</span>
+                    <span class="btn-text">INITIALIZE HUMAN</span>
+                  </span>
+                  <span class="btn-glow"></span>
+                </button>
+                <button id="resetSequenceBtn" class="reset-btn" style="display: none;">
+                  RESET DIAGNOSTIC
+                </button>
+              </div>
+
+            </div>
+
+          </section>
+
+          <!-- PIPELINE FOOTER -->
+          <footer class="hud-footer">
+            <div class="hardware-pipeline">
+              <div class="pipeline-node active">
+                <span class="pipe-num">01</span>
+                <span class="pipe-name">ESP32 + MPU6050</span>
+              </div>
+              <div class="pipeline-arrow">→</div>
+              <div class="pipeline-node active">
+                <span class="pipe-num">02</span>
+                <span class="pipe-name">USB SERIAL</span>
+              </div>
+              <div class="pipeline-arrow">→</div>
+              <div class="pipeline-node standby">
+                <span class="pipe-num">03</span>
+                <span class="pipe-name">WEB SERIAL API</span>
+              </div>
+              <div class="pipeline-arrow">→</div>
+              <div class="pipeline-node current">
+                <span class="pipe-num">04</span>
+                <span class="pipe-name">KINETIC INTERFACE</span>
+              </div>
+              <div class="pipeline-arrow">→</div>
+              <div class="pipeline-node current">
+                <span class="pipe-num">05</span>
+                <span class="pipe-name">3 USELESS GAMES</span>
+              </div>
+              <div class="pipeline-arrow">→</div>
+              <div class="pipeline-node active">
+                <span class="pipe-num">06</span>
+                <span class="pipe-name">LEADERBOARD</span>
+              </div>
+            </div>
+            <div class="disclaimer-text">
+              BUILT FOR TINKERHUB USELESS PROJECTS // SCIENTIFIC UTILITY ESTIMATE: ABSOLUTE ZERO
+            </div>
+          </footer>
+
+        </div>
+      </section>
+
+    </main>
+
+  </div>
+
+
+  <!-- ========================================================
+       MODAL: FAKE GAME SEQUENCE & FUNNY RESULTS
+       ======================================================== -->
+  <div class="modal-backdrop" id="fakeGameModal" style="display: none;">
+    <div class="fake-game-dialog">
+      <div class="dialog-header">
+        <span class="dialog-dot"></span>
+        <span class="dialog-title" id="fakeGameTitle">GAME TITLE</span>
+        <button class="dialog-close-x" id="fakeGameCloseBtn">×</button>
+      </div>
+      
+      <div class="dialog-body">
+        <div class="fake-loading-container" id="fakeLoadingBox">
+          <div class="fake-status-text" id="fakeLoadingStatus">CALIBRATING BRAIN...</div>
+          <div class="fake-progress-bar">
+            <div class="fake-progress-fill" id="fakeProgressFill" style="width: 0%;"></div>
+          </div>
+          <div class="fake-ascii-bar" id="fakeAsciiBar">░░░░░░░░░░░░░░░░░░░░</div>
+        </div>
+
+        <div class="fake-result-container" id="fakeResultBox" style="display: none;">
+          <div class="fake-result-badge">ANALYSIS COMPLETE.</div>
+          
+          <div class="fake-quote-1" id="fakeQuote1">"BRAIN DETECTED."</div>
+          <div class="fake-quote-2" id="fakeQuote2">"Unfortunately, it appears to be running Internet Explorer."</div>
+
+          <div class="fake-modal-actions">
+            <button class="arcade-primary-btn" id="fakeReturnArcadeBtn">
+              [ RETURN TO ARCADE ]
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
